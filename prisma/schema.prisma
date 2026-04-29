@@ -1,13 +1,88 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  // YE LINE ADD KAREIN:
+  bio       String?  @default("Freelance Web Developer") 
+  createdAt DateTime @default(now())
+  projects  Project[]
+  image     String?  // Ensure karein ye line hai
+  emailNotify     Boolean  @default(true)
+  desktopNotify   Boolean  @default(true)
+  inquiryNotify   Boolean  @default(true)
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  status      String    @default("Todo")
+  category    String?
+  image       String?
+  dueDate     DateTime? // Optimized type
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model Client {
+  id        String    @id @default(cuid())
+  name      String
+  email     String?   @unique
+  projects  Project[]
+  invoices  Invoice[]
+  createdAt DateTime  @default(now())
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  title       String
+  clientId    String
+  status      String    @default("ACTIVE")
+  budget      Float?
+  description String? // Check karein ye line hai
+  image       String? // Check karein ye line hai
+  userId      String
+  createdAt   DateTime @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  // schema.prisma ke andar
+category String @default("Web Development")
+  // ... baqi fields
+  tasks       Task[]
+  client      Client    @relation(fields: [clientId], references: [id])
+  invoices    Invoice[]
+}
+
+model Invoice {
+  id       String @id @default(cuid())
+  amount   Float
+  status   String @default("PENDING")
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  projectId String?
+  project   Project? @relation(fields: [projectId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Stat {
+  id        String   @id @default(cuid())
+  label     String
+  value     String
+  change    String
+  icon      String?
+  createdAt DateTime @default(now())
 }
