@@ -6,6 +6,7 @@ import {
   TrendingUp, RefreshCcw, Bell, ArrowUpRight, Loader2 
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react"; // ✅ Session hook
 import { getDashboardData } from "@/actions/dashboardActions"; 
 import { getInvoices } from "@/actions/invoices";
 import Sidebar from "../components/ui/Sidebar"; 
@@ -17,6 +18,7 @@ const XAxis = React.lazy(() => import('recharts').then(mod => ({ default: mod.XA
 const Tooltip = React.lazy(() => import('recharts').then(mod => ({ default: mod.Tooltip })));
 
 export default function OverviewDashboard() {
+  const { data: session, status } = useSession(); // ✅ Authentication status
   const router = useRouter();
   const [theme, setTheme] = useState("dark");
   const [mounted, setMounted] = useState(false);
@@ -24,6 +26,13 @@ export default function OverviewDashboard() {
   const [dbStatus, setDbStatus] = useState({ error: false, message: "" });
   const [stats, setStats] = useState({ revenue: 0, activeProjects: 0, happyClients: 0, efficiency: 95.1 });
   const [loading, setLoading] = useState(true);
+
+  // ✅ Auth Logic: Agar login nahi hai toh /login par bhej de
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    }
+  }, [status, router]);
 
   useEffect(() => {
     setMounted(true);
@@ -36,9 +45,7 @@ export default function OverviewDashboard() {
 
   const fetchStats = useCallback(async () => {
     try {
-      // ✅ Fresh data fetch karne ke liye router refresh call kiya
       router.refresh();
-      
       const [dashRes, iRes] = await Promise.all([getDashboardData(), getInvoices()]);
       if (dashRes && iRes?.success) {
         const p = dashRes.projects || [];
@@ -65,7 +72,9 @@ export default function OverviewDashboard() {
   }, [router]);
 
   useEffect(() => {
-    fetchStats();
+    if (status === "authenticated") {
+      fetchStats();
+    }
 
     const effInterval = setInterval(() => {
       setStats(prev => ({
@@ -75,17 +84,25 @@ export default function OverviewDashboard() {
     }, 4000);
 
     const dbInterval = setInterval(() => {
-      console.log("System Syncing: Fetching live data...");
-      fetchStats();
+      if (status === "authenticated") fetchStats();
     }, 120000); 
 
     return () => {
       clearInterval(effInterval);
       clearInterval(dbInterval);
     };
-  }, [fetchStats]);
+  }, [fetchStats, status]);
 
-  if (!mounted) return <div className="min-h-screen bg-black" />;
+  // ✅ Loading Spinner jab tak system sync ho raha ho
+  if (status === "loading" || !mounted) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!session) return null;
 
   const themeClasses = { 
     dark: "bg-black text-white", 
@@ -120,7 +137,7 @@ export default function OverviewDashboard() {
               SYSTEM SYNCED: {currentTime} <RefreshCcw size={12} onClick={() => {setLoading(true); fetchStats();}} className={`cursor-pointer hover:text-blue-400 ${loading && "animate-spin"}`} />
             </p>
             <h1 className="text-3xl md:text-5xl font-black italic mt-1 uppercase tracking-tighter">
-              Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Ayesha</span>
+              Welcome, <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">{session.user?.name || "Ayesha"}</span>
             </h1>
           </div>
           
@@ -132,38 +149,34 @@ export default function OverviewDashboard() {
             ))}
           </div>
         </div>
-{/* STATS GRID - COMPACT VERSION */}
-<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-  {[
-    { label: "REVENUE", value: `$${stats.revenue.toLocaleString()}`, Icon: DollarSign, color: "bg-[#8B5CF6]", path: "/invoices" },
-    { label: "PROJECTS", value: stats.activeProjects, Icon: Briefcase, color: "bg-[#2563EB]", path: "/projects" },
-    { label: "CLIENTS", value: stats.happyClients, Icon: Users, color: "bg-[#EA580C]", path: "/clients" },
-    { label: "EFFICIENCY", value: `${stats.efficiency}%`, Icon: TrendingUp, color: "bg-[#059669]", path: "/analytics" },
-  ].map((stat, i) => {
-    const IconComponent = stat.Icon;
-    return (
-      <div 
-        key={i} 
-        onClick={() => router.push(stat.path)}
-        className={`${cardClass} p-6 rounded-[2.5rem] border group hover:-translate-y-1 hover:border-blue-500/30 transition-all cursor-pointer flex flex-col items-start`}
-      >
-        <div className={`${stat.color} w-12 h-12 rounded-xl flex items-center justify-center mb-5 text-white shadow-lg group-hover:scale-105 transition-transform`}>
-          <IconComponent size={24} />
+
+        {/* STATS GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: "REVENUE", value: `$${stats.revenue.toLocaleString()}`, Icon: DollarSign, color: "bg-[#8B5CF6]", path: "/invoices" },
+            { label: "PROJECTS", value: stats.activeProjects, Icon: Briefcase, color: "bg-[#2563EB]", path: "/projects" },
+            { label: "CLIENTS", value: stats.happyClients, Icon: Users, color: "bg-[#EA580C]", path: "/clients" },
+            { label: "EFFICIENCY", value: `${stats.efficiency}%`, Icon: TrendingUp, color: "bg-[#059669]", path: "/analytics" },
+          ].map((stat, i) => {
+            const IconComponent = stat.Icon;
+            return (
+              <div 
+                key={i} 
+                onClick={() => router.push(stat.path)}
+                className={`${cardClass} p-6 rounded-[2.5rem] border group hover:-translate-y-1 hover:border-blue-500/30 transition-all cursor-pointer flex flex-col items-start`}
+              >
+                <div className={`${stat.color} w-12 h-12 rounded-xl flex items-center justify-center mb-5 text-white shadow-lg group-hover:scale-105 transition-transform`}>
+                  <IconComponent size={24} />
+                </div>
+                <p className="text-[10px] font-black opacity-40 mb-1 tracking-[0.2em] uppercase">{stat.label}</p>
+                <h3 className="text-3xl font-black tracking-tighter">{stat.value}</h3>
+              </div>
+            );
+          })}
         </div>
-        
-        <p className="text-[10px] font-black opacity-40 mb-1 tracking-[0.2em] uppercase">
-          {stat.label}
-        </p>
-        
-        <h3 className="text-3xl font-black tracking-tighter">
-          {stat.value}
-        </h3>
-      </div>
-    );
-  })}
-</div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* WORKFLOW CHART */}
           <div className={`${cardClass} lg:col-span-2 p-6 md:p-10 rounded-[2.5rem] border overflow-hidden`}>
             <div className="flex justify-between items-center mb-8">
               <h2 className="text-lg font-black italic uppercase tracking-tight">Workflow Performance</h2>
@@ -188,6 +201,7 @@ export default function OverviewDashboard() {
             </div>
           </div>
 
+          {/* ACTIVITY FEED */}
           <div className={`${cardClass} p-6 md:p-8 rounded-[2.5rem] border flex flex-col`}>
             <div className="flex items-center justify-between mb-8">
               <h2 className="font-black italic uppercase text-xs tracking-widest opacity-70">Activity Feed</h2>
