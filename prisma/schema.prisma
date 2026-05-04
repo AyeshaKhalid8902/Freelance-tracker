@@ -7,18 +7,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// 1. Role define kiya (Admin aur User)
+enum Role {
+  ADMIN
+  USER
+}
+
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  name      String?
-  // YE LINE ADD KAREIN:
-  bio       String?  @default("Freelance Web Developer") 
-  createdAt DateTime @default(now())
-  projects  Project[]
-  image     String?  // Ensure karein ye line hai
-  emailNotify     Boolean  @default(true)
-  desktopNotify   Boolean  @default(true)
-  inquiryNotify   Boolean  @default(true)
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  role          Role      @default(USER) // 2. Yeh line role add karti hai
+  bio           String?   @default("Freelance Web Developer") 
+  createdAt     DateTime  @default(now())
+  projects      Project[]
+  image         String?   
+  emailNotify   Boolean   @default(true)
+  desktopNotify Boolean   @default(true)
+  inquiryNotify Boolean   @default(true)
 }
 
 model Task {
@@ -28,7 +34,7 @@ model Task {
   status      String    @default("Todo")
   category    String?
   image       String?
-  dueDate     DateTime? // Optimized type
+  dueDate     DateTime? 
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -51,25 +57,23 @@ model Project {
   clientId    String
   status      String    @default("ACTIVE")
   budget      Float?
-  description String? // Check karein ye line hai
-  image       String? // Check karein ye line hai
+  description String? 
+  image       String? 
   userId      String
   createdAt   DateTime @default(now())
   user        User      @relation(fields: [userId], references: [id])
-  // schema.prisma ke andar
-category String @default("Web Development")
-  // ... baqi fields
+  category    String @default("Web Development")
   tasks       Task[]
   client      Client    @relation(fields: [clientId], references: [id])
   invoices    Invoice[]
 }
 
 model Invoice {
-  id       String @id @default(cuid())
-  amount   Float
-  status   String @default("PENDING")
+  id        String @id @default(cuid())
+  amount    Float
+  status    String @default("PENDING")
   clientId String
-  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  client    Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   projectId String?
   project   Project? @relation(fields: [projectId], references: [id])
